@@ -11,6 +11,7 @@ knitr::opts_chunk$set(fig.height=5, fig.align = "center")
 knitr::opts_chunk$set(echo=FALSE)
 ```
 # NLP analysis of superheroes
+## Javier Cabrera Marugán
 # Introduction
 The proposal consists in predicting if a superhero is part of the group of the good superheroes or if he belongs to the group of the bad ones just by analyzing the occurrence of the words of the history of each one of them.
 
@@ -46,7 +47,7 @@ The first variable to be analyzed is alignment. It is going to graph the values 
 par(mar=c(3.5, 3.5, 2, 1), mgp=c(2.4, 0.8, 0), las=1)
 plot(alineamiento)
 ```
-In the case of alignment, it can be seen that there are some superheroes that have not been assigned, so they have been excluded for this analysis.
+In the case of alignment, it can be seen that there are some superheroes that have not been assigned, so they have been excluded for this analysis. In addition, neutral superheroes will not be taken into account for this analysis.
 ```{r,  out.width="35%"}
 cond = alineamiento!= ""
 alineamientoFixed = factor(subset(alineamiento, cond))
