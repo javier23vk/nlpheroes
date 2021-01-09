@@ -1,0 +1,385 @@
+---
+geometry: margin=1.5cm
+output:
+  pdf_document: default
+  html_notebook: default
+---
+```{r include = FALSE}
+knitr::opts_chunk$set(message=FALSE)
+knitr::opts_chunk$set(warning=FALSE)
+knitr::opts_chunk$set(fig.height=5, fig.align = "center") 
+knitr::opts_chunk$set(echo=FALSE)
+```
+# NLP analysis of superheroes
+# Introduction
+The proposal consists in predicting if a superhero is part of the group of the good superheroes or if he belongs to the group of the bad ones just by analyzing the occurrence of the words of the history of each one of them.
+
+# Dataset 
+The dataset chosen for this proposal is one that contains very detailed information on various aspects of superheroes. This document can be obtained at this link: [https://www.kaggle.com/jonathanbesomi/superheroes-nlp-dataset ](https://www.kaggle.com/jonathanbesomi/superheroes-nlp-dataset ). Of all the variables contained in the dataset only the variable history_text and alignment have been required to perform the NLP analysis.
+```{r}
+library(tm)
+library(ggplot2)
+library(wordcloud)
+library(RWeka)
+library(reshape2)
+library(qdap)
+library(dplyr)
+library(quanteda)
+library(tokenizers)
+library(tidytext)
+library(varhandle)
+```
+
+# Preprocessing
+In order to use the data, first the data has to be processed to obtain only what is desired. In this case, the columns history_text and alignment have to be used.
+```{r}
+heroes <- read.csv(file = 'superheroes_nlp_dataset.csv', encoding = "UTF-8")
+```
+
+```{r}
+historia = factor(heroes$history_text)
+alineamiento = factor(heroes$alignment)
+```
+
+The first variable to be analyzed is alignment. It is going to graph the values that this variable has.
+```{r,  out.width="35%"}
+par(mar=c(3.5, 3.5, 2, 1), mgp=c(2.4, 0.8, 0), las=1)
+plot(alineamiento)
+```
+In the case of alignment, it can be seen that there are some superheroes that have not been assigned, so they have been excluded for this analysis.
+```{r,  out.width="35%"}
+cond = alineamiento!= ""
+alineamientoFixed = factor(subset(alineamiento, cond))
+historiaFixed = factor(subset(historia, cond))
+```
+The next variable is that of history. It will also be checked for empty values. The value TRUE means that it is different from null.
+```{r,  out.width="35%"}
+ par(mar=c(3.5, 3.5, 2, 1), mgp=c(2.4, 0.8, 0), las=1)
+plot(factor(historiaFixed!=""))
+```
+The same happens with the history, there are some who do not have, so they have also been excluded.
+```{r, out.width="35%"}
+cond2 = historiaFixed!= ""
+alineamientoFixed2 = factor(subset(alineamientoFixed, cond2))
+historiaFixed2 = factor(subset(historiaFixed, cond2))
+```
+Another feature that must be taken into account for further analysis is the number of good and bad superheroes.
+Due to the fact that there are a different number of good superheroes than bad ones, we have selected 200 from the good ones and 200 from the bad ones to make the analysis more equitable.
+```{r}
+historiaFinal = historiaFixed2
+alineamientoFinal = alineamientoFixed2
+```
+
+```{r}
+alineamientoTest = alineamientoFinal[alineamientoFinal=="Bad" | alineamientoFinal=="Good"]
+alineamientoTest = alineamientoTest[1:400]
+
+
+HistoriaMalos = historiaFinal[alineamientoFinal=="Bad"]
+HistoriaBuenos = historiaFinal[alineamientoFinal=="Good"]
+HistoriaBuenos= HistoriaBuenos[1:200]
+HistoriaMalos= HistoriaMalos[1:200]
+HistoriaTotal = historiaFinal[alineamientoFinal=="Bad" | alineamientoFinal=="Good"]
+
+HistoriaTotal = HistoriaTotal[1:400]
+```
+# Analysis with TF-IDF word weights
+
+The first analysis that has been done, because it is the most promising in terms of results, is to analyze through TDM applying TF-IDF as weight instead of frequency.
+```{r}
+corpusM = Corpus(VectorSource(HistoriaMalos))
+corpusB= Corpus(VectorSource(HistoriaBuenos))
+corpusTotal = Corpus(VectorSource(HistoriaTotal))
+```
+
+In this case, many transformations have been made to the text to make it as efficient as possible. In this case we have eliminated words that do not provide any information, eliminated punctuation marks, numbers, multispaces, brackets, transformed contractions and abbreviations and symbols and finally used stemming.
+```{r}
+corpusB = tm_map(corpusB, removeWords, stopwords())
+corpusB = tm_map(corpusB, removePunctuation)
+corpusB = tm_map(corpusB, removeNumbers)
+corpusB = tm_map(corpusB, stripWhitespace)
+corpusB = tm_map(corpusB, tolower)
+corpusB = tm_map(corpusB, bracketX)
+corpusB = tm_map(corpusB, replace_contraction)
+corpusB = tm_map(corpusB, replace_abbreviation)
+corpusB = tm_map(corpusB, replace_symbol)
+corpusB = tm_map(corpusB, stemDocument)
+
+corpusTotal = tm_map(corpusTotal, removeWords, stopwords())
+corpusTotal = tm_map(corpusTotal, removePunctuation)
+corpusTotal = tm_map(corpusTotal, removeNumbers)
+corpusTotal = tm_map(corpusTotal, stripWhitespace)
+corpusTotal = tm_map(corpusTotal, tolower)
+corpusTotal = tm_map(corpusTotal, bracketX)
+corpusTotal = tm_map(corpusTotal, replace_contraction)
+corpusTotal = tm_map(corpusTotal, replace_abbreviation)
+corpusTotal = tm_map(corpusTotal, replace_symbol)
+corpusTotal = tm_map(corpusTotal, stemDocument)
+
+corpusM = tm_map(corpusM, removeWords, stopwords())
+corpusM = tm_map(corpusM, removePunctuation)
+corpusM = tm_map(corpusM, removeNumbers)
+corpusM = tm_map(corpusM, stripWhitespace)
+corpusM = tm_map(corpusM, tolower)
+corpusM = tm_map(corpusM, bracketX)
+corpusM = tm_map(corpusM, replace_contraction)
+corpusM = tm_map(corpusM, replace_abbreviation)
+corpusM = tm_map(corpusM, replace_symbol)
+corpusM = tm_map(corpusM, stemDocument)
+```
+
+In order to perform the analysis, a TDM is created and then the word TF-IDF is plotted.
+```{r,  out.width="50%"}
+tdm.tfidfB = TermDocumentMatrix(corpusB,
+                               control = list(weighting = weightTfIdf))
+freqB=rowSums(as.matrix(tdm.tfidfB))
+par(mar=c(3.5, 3.5, 2, 1), mgp=c(2.4, 0.8, 0), las=1, mfrow=c(1,2))
+
+plot(sort(freqB, decreasing = T),col="blue",main="Word TF-IDF good",
+     xlab="TF-IDF-based rank", ylab = "TF-IDF")
+
+tdm.tfidfM = TermDocumentMatrix(corpusM,
+                               control = list(weighting = weightTfIdf))
+freqM=rowSums(as.matrix(tdm.tfidfM))
+par(mar=c(3.5, 3.5, 2, 1), mgp=c(2.4, 0.8, 0), las=1)
+plot(sort(freqM, decreasing = T),col="blue",main="Word TF-IDF bad",
+     xlab="TF-IDF-based rank", ylab = "TF-IDF")
+
+
+tdm.tfidfT = TermDocumentMatrix(corpusTotal,
+                               control = list(weighting = weightTfIdf))
+
+```
+In the graph of the good ones you can see that a few words have values that stand out but there are many whose values are almost zero. In the bad ones there is a word that stands out more than the others but it also has a great set of words that are above the value 1. 
+
+Finally, the method that predicts whether these collected words are good or bad just by looking at the text of his story has been realized.
+```{r}
+wordsB = c(as.list(rownames(tdm.tfidfB)))
+wordsM = c(as.list(rownames(tdm.tfidfM)))
+freqB=rowSums(as.matrix(tdm.tfidfB))
+freqM=rowSums(as.matrix(tdm.tfidfM))
+
+wordsB = wordsB[order(freqB, decreasing = TRUE)]
+wordsB = wordsB[c(1:1500)]
+wordsM = wordsM[order(freqM, decreasing = TRUE)]
+wordsM = wordsM[c(1:1500)]
+
+c =as.list(corpusTotal)
+
+listForB = list()
+listForM = list()
+for (i in 1: length(c)) {
+  lB = sapply(wordsB, grepl, c[[i]])
+  listForB[i] = sum(freqB[lB[TRUE]])
+  lM = sapply(wordsM, grepl, c[[i]])
+  listForM[i] = sum(freqM[lM[TRUE]])
+}
+```
+
+```{r}
+prediction = list()
+for(i in 1:400){
+  if(listForB[[i]]>listForM[[i]]){
+    prediction[i] = "Good"
+  }else{
+    prediction[i] = "Bad"
+  }
+}
+
+pred = (unlist(prediction)==unfactor(alineamientoTest))
+(length(pred[pred ==TRUE])/400)*100
+
+```
+The result is over 50% so some of the intelligence is in this method but the success rate is not very high.
+
+# Word frequency analysis
+
+The same process is repeated as in the previous one, first a TDM is created and then the graphs are made, in this case of the frequencies.
+```{r, out.width="50%"}
+tdm.B = TermDocumentMatrix(corpusB)
+freqB=rowSums(as.matrix(tdm.B))
+par(mar=c(3.5, 3.5, 2, 1), mgp=c(2.4, 0.8, 0), las=1, mfrow=c(1,2))
+plot(sort(freqB, decreasing = T),col="blue",main="Word  frequencies good",
+     xlab="rank", ylab = "freq")
+
+tdm.M = TermDocumentMatrix(corpusM)
+freqM=rowSums(as.matrix(tdm.M))
+plot(sort(freqM, decreasing = T),col="blue",main="Word  frequencies bad",
+     xlab="rank", ylab = "freq")
+
+
+
+tdm.T = TermDocumentMatrix(corpusTotal)
+
+```
+There is a word that is repeated a lot in the good graph, but when it is repeated so much, it may lack useful information. In the case of the bad ones some words stand out but not as much as in the case of the good ones.
+
+Finally, the prediction is made with these words.
+```{r,  out.width="50%"}
+wordsB = c(as.list(rownames(tdm.B)))
+wordsM = c(as.list(rownames(tdm.M)))
+freqB=rowSums(as.matrix(tdm.B))
+freqM=rowSums(as.matrix(tdm.M))
+
+wordsB = wordsB[order(freqB, decreasing = TRUE)]
+wordsB = wordsB[c(1:1500)]
+wordsM = wordsM[order(freqM, decreasing = TRUE)]
+wordsM = wordsM[c(1:1500)]
+
+c =as.list(corpusTotal)
+
+listForB = list()
+listForM = list()
+for (i in 1: length(c)) {
+  lB = sapply(wordsB, grepl, c[[i]])
+  listForB[i] = sum(freqB[lB[TRUE]])
+  lM = sapply(wordsM, grepl, c[[i]])
+  listForM[i] = sum(freqM[lM[TRUE]])
+}
+```
+
+```{r}
+prediction = list()
+for(i in 1:400){
+  if(listForB[[i]]>listForM[[i]]){
+    prediction[i] = "Good"
+  }else{
+    prediction[i] = "Bad"
+  }
+}
+
+pred = (unlist(prediction)==unfactor(alineamientoTest))
+(length(pred[pred ==TRUE])/400)*100
+
+```
+The prediction is very similar to the previous one but it is slightly lower, it works better with TF-IDF. 
+
+
+# Bigram frequency analysis
+The last analysis to be done is through the frequency of the bigramas.
+```{r}
+corpusM= VCorpus(VectorSource(HistoriaBuenos))
+corpusB = VCorpus(VectorSource(HistoriaMalos))
+corpusTotal = Corpus(VectorSource(HistoriaTotal))
+```
+
+In this case, the text has only been transformed by eliminating words if they are important, eliminating punctuation, numbers, multispaces and stemming has been applied. 
+```{r}
+corpusB = tm_map(corpusB, removeWords, stopwords())
+corpusB = tm_map(corpusB, removePunctuation)
+corpusB = tm_map(corpusB, removeNumbers)
+corpusB = tm_map(corpusB, stripWhitespace)
+corpusB = tm_map(corpusB, stemDocument)
+
+corpusM = tm_map(corpusM, removeWords, stopwords())
+corpusM = tm_map(corpusM, removePunctuation)
+corpusM = tm_map(corpusM, removeNumbers)
+corpusM = tm_map(corpusM, stripWhitespace)
+corpusM = tm_map(corpusM, stemDocument)
+
+
+corpusTotal = tm_map(corpusTotal, removeWords, stopwords())
+corpusTotal = tm_map(corpusTotal, removePunctuation)
+corpusTotal = tm_map(corpusTotal, removeNumbers)
+corpusTotal = tm_map(corpusTotal, stripWhitespace)
+corpusTotal = tm_map(corpusTotal, stemDocument)
+
+```
+As in the previous cases, a TDM is also performed and then the frequency of these bigramas is plotted but a wordcloud is also performed to know if the word combinations make sense.
+```{r,  out.width="50%"}
+BigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 2, max = 2))
+tdm.bigramB = TermDocumentMatrix(corpusB,
+                                control = list (tokenize = BigramTokenizer))
+
+freq.bigramB = sort(rowSums(as.matrix(tdm.bigramB)), decreasing = TRUE)
+freq.bigramB.df = data.frame(word=names(freq.bigramB), freq=freq.bigramB)
+
+
+tdm.bigramM = TermDocumentMatrix(corpusM,
+                                control = list (tokenize = BigramTokenizer))
+freq.bigramM = sort(rowSums(as.matrix(tdm.bigramM)), decreasing = TRUE)
+freq.bigramM.df = data.frame(word=names(freq.bigramM), freq=freq.bigramM)
+```
+
+
+```{r,  out.width="50%"}
+par(mar=c(3.5, 3.5, 2, 1), mgp=c(2.4, 0.8, 0), las=1,mfrow=c(1,2))
+
+plot(sort(freq.bigramB, decreasing = T),col="blue",main="Bigram  frequencies
+     good", xlab="rank", ylab = "freq")
+
+plot(sort(freq.bigramM, decreasing = T),col="blue",main="Bigram  frequencies
+     bad", xlab="rank", ylab = "freq")
+```
+
+
+The first wordcloud corresponds to the good ones and the second to the bad ones
+```{r,  out.width="40%"}
+par(mar=c(3.5, 3.5, 2, 1), mgp=c(2.4, 0.8, 0), las=1)
+ wordcloud(freq.bigramB.df$word,freq.bigramB.df$freq,max.words=100,
+          random.order = F)
+par(mar=c(3.5, 3.5, 2, 1), mgp=c(2.4, 0.8, 0), las=1)
+wordcloud(freq.bigramM.df$word,freq.bigramM.df$freq,max.words=100,
+          random.order = F)
+```
+
+
+The graphs that have been obtained have not been very favorable since the maximum frequency is not very high in both graphs. It should be noted that the bad wordcloud highlights the words "big boss", which is quite understandable.
+
+
+With these sets of words a prediction is also made.
+```{r}
+freqB=rowSums(as.matrix(tdm.bigramB))
+freqM=rowSums(as.matrix(tdm.bigramM))
+wordsB = c(as.list(rownames(tdm.bigramB)))
+wordsM = c(as.list(rownames(tdm.bigramM)))
+
+wordsB = wordsB[order(freqB, decreasing = TRUE)]
+wordsB = wordsB[c(1:1500)]
+wordsM = wordsM[order(freqM, decreasing = TRUE)]
+wordsM = wordsM[c(1:1500)]
+
+freqB = freqB[order(freqB, decreasing = TRUE)]
+freqM = freqM[order(freqM, decreasing = TRUE)]
+
+
+c =as.list(corpusTotal)
+
+listForB = list()
+listForM = list()
+for (i in 1: length(c)) {
+  lB = sapply(wordsB, grepl, c[[i]])
+  listForB[i] = sum(freqB[lB[TRUE]])
+  lM = sapply(wordsM, grepl, c[[i]])
+  listForM[i] = sum(freqM[lM[TRUE]])
+}
+```
+
+```{r}
+prediction = list()
+for(i in 1:400){
+  if(listForB[[i]]>listForM[[i]]){
+    prediction[i] = "Good"
+  }else{
+    prediction[i] = "Bad"
+  }
+}
+
+pred = (unlist(prediction)==unfactor(alineamientoTest))
+(length(pred[pred ==TRUE])/200)*100
+
+```
+Surprisingly, the percentage is very low, less than 50%, so in this case it is not useful to predict whether a superhero is good or bad.
+
+
+# Conclusion
+
+The best method used is the first one, with which you get a 65.5% of success, being the one of frequencies also valid since its result was very similar, but the one that cannot be used is the one of the bigramas. 
+
+It should be noted that although the analysis has been made with the same number of good characters as bad, the length of the story of each is not similar so this difference is likely to produce errors.
+
+It's also true that the story of some superheroes and villains are very related, both being named in the story of both producing misunderstandings if only the frequency is taken into account. 
+
+To achieve better results, more variables should be taken into account or some semantic component should be added to the words, since this study only takes into account the number of occurrences.
+
+Github link = [https://github.com/javier23vk/nlpheroes ](https://github.com/javier23vk/nlpheroes)
